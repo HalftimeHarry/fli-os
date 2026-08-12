@@ -14,6 +14,31 @@ export class PocketBaseDepartmentRepository implements DepartmentRepository {
 		return DepartmentFactory.fromPersistence(record);
 	}
 
+	async findByCodeAndOrganization(
+		code: string,
+		organizationId: string
+	): Promise<Department | null> {
+		const filter = this.provider.client.filter(
+			'code = {:code} && organization = {:organizationId}',
+			{
+				code,
+				organizationId
+			}
+		);
+
+		const record = await this.provider.client
+			.collection('departments')
+			.getFirstListItem<DepartmentRecord>(filter)
+			.catch((error) => {
+				if (error?.status === 404) {
+					return null;
+				}
+				throw error;
+			});
+
+		return record ? DepartmentFactory.fromPersistence(record) : null;
+	}
+
 	async findAll(): Promise<Department[]> {
 		const records = await this.provider.client
 			.collection('departments')
