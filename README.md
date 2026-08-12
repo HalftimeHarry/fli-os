@@ -1,42 +1,124 @@
-# sv
+# Fli OS
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Fli OS is the business operating system for the Fli Disc Golf League.
 
-## Creating a project
+## Purpose
 
-If you're seeing this, you've probably already done this step. Congrats!
+Fli OS provides role- and department-specific workflows for managing league operations while reducing complexity for individual users.
 
-```sh
-# create a new project
-npx sv create my-app
+Users interact with workflows appropriate to their responsibilities, while the system maintains consistent data, naming, approvals, budgets, and operational records.
+
+## Technology
+
+- SvelteKit
+- TypeScript
+- Tailwind CSS
+- shadcn-svelte
+- PocketBase
+- Railway
+- GitHub Codespaces
+
+## Architecture
+
+Fli OS follows a domain-oriented, object-oriented architecture.
+
+```text
+UI
+↓
+Controllers
+↓
+Services
+↓
+Repository Interfaces
+↓
+PocketBase Repository Adapters
+↓
+PocketBaseProvider
+↓
+PocketBase
 ```
 
-To recreate this project with the same configuration:
+## Current Domains
+
+### Organization
+Represents an organization operating within Fli OS.
+
+### Users
+Authenticated Fli OS users belonging to an organization.
+
+### Roles
+Organization-scoped roles containing explicit permissions.
+
+### Departments
+Organization-scoped operational departments.
+
+## Authentication & Authorization
+
+Authentication identity is resolved through `AuthContext`.
+
+Authorization is permission-based through `AuthorizationService`.
+
+Fli OS intentionally avoids hardcoded role checks such as `isAdmin()` or `isManager()`.
+
+> Repositories answer how data is stored and retrieved. Services answer whether an operation is valid. Authorization answers whether the current actor may perform it.
+
+## Current Development Status
+
+### Completed
+
+- Project foundation
+- SvelteKit and TypeScript architecture
+- PocketBase integration
+- AppContainer dependency composition
+- Organization domain
+- User domain
+- Role and permission domain
+- Department domain
+- Repository interfaces
+- PocketBase repository adapters
+- Domain services
+- Authentication context
+- Authorization service
+- Organization-scoped validation
+- Department-scoped validation
+
+### In Progress
+
+- Authenticated application shell
+- Login flow
+- Protected `/app` routes
+- Permission-aware navigation
+
+### Planned
+
+- Projects and tasks
+- Work orders and approvals
+- Department budgets
+- League financial management
+- Seasons and tournaments
+- Teams and professional players
+- Tournament payouts
+- Sponsors and revenue
+- Vendor bidding
+- Broadcasting
+- Contracts
+- Ticketing
+- Merchandise
+- Reporting and audit history
+
+## Development
 
 ```sh
-# recreate this project
-npx sv@0.17.0 create --template minimal --types ts --add prettier eslint tailwindcss="plugins:none" --install npm .
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
+npm install
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
-
-To create a production version of your app:
+## Production Build
 
 ```sh
 npm run build
 ```
 
-You can preview the production build with `npm run preview`.
+## Project Notes
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+This repository is intentionally structured around domain-first design and service validation before controller/UI expansion. The application is still in early product-building phases, but the foundational architecture is already established and is designed to support growth without coupling the UI directly to storage or authorization logic.
