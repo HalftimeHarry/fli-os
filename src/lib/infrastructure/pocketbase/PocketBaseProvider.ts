@@ -24,6 +24,10 @@ export class PocketBaseProvider {
 		return this.clientInstance.authStore.record;
 	}
 
+	async authenticate(collectionName: string, email: string, password: string) {
+		return this.clientInstance.collection(collectionName).authWithPassword(email, password);
+	}
+
 	clearAuth(): void {
 		this.clientInstance.authStore.clear();
 	}
