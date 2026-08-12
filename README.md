@@ -41,15 +41,19 @@ PocketBase
 ## Current Domains
 
 ### Organization
+
 Represents an organization operating within Fli OS.
 
 ### Users
+
 Authenticated Fli OS users belonging to an organization.
 
 ### Roles
+
 Organization-scoped roles containing explicit permissions.
 
 ### Departments
+
 Organization-scoped operational departments.
 
 ## Authentication & Authorization
