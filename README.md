@@ -56,6 +56,18 @@ Organization-scoped roles containing explicit permissions.
 
 Organization-scoped operational departments.
 
+### Projects and Tasks
+
+The first completed operational workflow is centered on project management:
+
+- Create Project
+- Open Project
+- Add Task
+- Assign User
+- Update Task Status
+
+This layer is fully wired from the Svelte UI through the controller, service, repository interface, PocketBase adapter, and the Railway-hosted PocketBase backend.
+
 ## Authentication & Authorization
 
 Authentication identity is resolved through `AuthContext`.
@@ -85,17 +97,23 @@ Fli OS intentionally avoids hardcoded role checks such as `isAdmin()` or `isMana
 - Authorization service
 - Organization-scoped validation
 - Department-scoped validation
-
-### In Progress
-
-- Authenticated application shell
-- Login flow
-- Protected `/app` routes
+- Project and task workflow
+- Create Project → Open Project → Add Task → Assign User → Update Task Status
+- Authenticated route protection
 - Permission-aware navigation
+
+### Next Recommendation
+
+The next business slice should extend the project/task workflow into procurement, likely:
+
+- Bid Request
+- Bid
+- Bid Selection
+
+This naturally expands from the existing `BID_REQUIRED` task type already modeled in the task domain.
 
 ### Planned
 
-- Projects and tasks
 - Work orders and approvals
 - Department budgets
 - League financial management
