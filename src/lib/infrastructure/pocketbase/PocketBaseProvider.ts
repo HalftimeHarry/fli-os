@@ -1,9 +1,30 @@
+import PocketBase, { type RecordModel } from 'pocketbase';
+
 /**
- * Placeholder wrapper for the PocketBase SDK.
- * This class will eventually provide the configured client and shared repository access.
+ * Minimal wrapper around the PocketBase SDK.
+ * Owns a single PocketBase client instance and exposes
+ * infrastructure-level authentication state.
  */
 export class PocketBaseProvider {
-	constructor() {
-		// Intentionally minimal for now.
+	private readonly clientInstance: PocketBase;
+
+	constructor(baseUrl: string) {
+		this.clientInstance = new PocketBase(baseUrl);
+	}
+
+	get client(): PocketBase {
+		return this.clientInstance;
+	}
+
+	get isAuthenticated(): boolean {
+		return this.clientInstance.authStore.isValid;
+	}
+
+	get currentUser(): RecordModel | null {
+		return this.clientInstance.authStore.record;
+	}
+
+	clearAuth(): void {
+		this.clientInstance.authStore.clear();
 	}
 }
