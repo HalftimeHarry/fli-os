@@ -9,24 +9,60 @@
 		pocketBaseUrl: env.PUBLIC_POCKETBASE_URL ?? 'http://127.0.0.1:8090'
 	} as AppConfig);
 
+	let firstName = $state('');
+	let lastName = $state('');
 	let email = $state('');
 	let password = $state('');
+	let confirmPassword = $state('');
 	let error = $state('');
 	let submitting = $state(false);
 
 	async function handleSubmit() {
 		error = '';
+		if (!firstName.trim() || !lastName.trim()) {
+			error = 'First and last name are required.';
+			return;
+		}
+
+		if (!email.trim() || !email.includes('@')) {
+			error = 'A valid email address is required.';
+			return;
+		}
+
+		if (password.length < 8) {
+			error = 'Password must be at least 8 characters long.';
+			return;
+		}
+
+		if (password !== confirmPassword) {
+			error = 'Passwords do not match.';
+			return;
+		}
+
 		submitting = true;
 
 		try {
+			const result = await appContainer.userController.createAccount({
+				email,
+				password,
+				firstName,
+				lastName
+			});
+
+			if (!result.ok) {
+				throw result.error;
+			}
+
 			await appContainer.pocketBase.authenticate('users', email, password);
 			await appContainer.authContext.refresh();
+
 			if (!appContainer.authContext.currentUser) {
-				throw new Error('Authentication succeeded but no Fli OS user was resolved.');
+				throw new Error('Account created, but no Fli OS user was resolved.');
 			}
+
 			await goto(resolve('/app'));
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Unable to sign in.';
+			error = err instanceof Error ? err.message : 'Unable to create account.';
 		} finally {
 			submitting = false;
 		}
@@ -34,19 +70,43 @@
 </script>
 
 <svelte:head>
-	<title>Fli OS Login</title>
+	<title>Create account</title>
 </svelte:head>
 
-<div class="login-shell">
+<div class="signup-shell">
 	<form
-		class="login-card"
+		class="signup-card"
 		onsubmit={(event) => {
 			event.preventDefault();
 			void handleSubmit();
 		}}
 	>
-		<h1>Fli OS</h1>
-		<p>Sign in to continue</p>
+		<h1>Create your account</h1>
+		<p>Start managing your organization in Fli OS.</p>
+
+		<div class="field-grid">
+			<label>
+				<span>First name</span>
+				<input
+					bind:value={firstName}
+					type="text"
+					name="firstName"
+					autocomplete="given-name"
+					required
+				/>
+			</label>
+
+			<label>
+				<span>Last name</span>
+				<input
+					bind:value={lastName}
+					type="text"
+					name="lastName"
+					autocomplete="family-name"
+					required
+				/>
+			</label>
+		</div>
 
 		<label>
 			<span>Email</span>
@@ -59,7 +119,18 @@
 				bind:value={password}
 				type="password"
 				name="password"
-				autocomplete="current-password"
+				autocomplete="new-password"
+				required
+			/>
+		</label>
+
+		<label>
+			<span>Confirm password</span>
+			<input
+				bind:value={confirmPassword}
+				type="password"
+				name="confirmPassword"
+				autocomplete="new-password"
 				required
 			/>
 		</label>
@@ -69,18 +140,18 @@
 		{/if}
 
 		<button type="submit" disabled={submitting}>
-			{submitting ? 'Signing in...' : 'Sign in'}
+			{submitting ? 'Creating account...' : 'Create account'}
 		</button>
 
-		<p class="signup-link">
-			Need an account?
-			<a href={resolve('/signup')}>Create one</a>
+		<p class="login-link">
+			Already have an account?
+			<a href={resolve('/login')}>Sign in</a>
 		</p>
 	</form>
 </div>
 
 <style>
-	.login-shell {
+	.signup-shell {
 		display: grid;
 		place-items: center;
 		min-height: 100vh;
@@ -88,41 +159,47 @@
 		background: #f4f7fb;
 	}
 
-	.login-card {
+	.signup-card {
 		display: grid;
 		gap: 1rem;
-		width: min(100%, 420px);
+		width: min(100%, 520px);
 		padding: 2rem;
 		border-radius: 1rem;
 		background: white;
 		box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 	}
 
-	.login-card h1 {
+	.signup-card h1 {
 		margin: 0;
 		font-size: 2rem;
 	}
 
-	.login-card p {
+	.signup-card p {
 		margin: 0;
 		color: #475569;
 	}
 
-	.login-card label {
+	.field-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+	}
+
+	.signup-card label {
 		display: grid;
 		gap: 0.5rem;
 		font-weight: 600;
 		color: #1e293b;
 	}
 
-	.login-card input {
+	.signup-card input {
 		padding: 0.8rem 0.9rem;
 		border: 1px solid #cbd5e1;
 		border-radius: 0.75rem;
 		font: inherit;
 	}
 
-	.login-card button {
+	.signup-card button {
 		padding: 0.85rem 1rem;
 		border: none;
 		border-radius: 0.75rem;
@@ -133,18 +210,16 @@
 		cursor: pointer;
 	}
 
-	.login-card button:disabled {
+	.signup-card button:disabled {
 		opacity: 0.7;
 		cursor: wait;
 	}
 
-	.signup-link {
-		margin: 0;
-		color: #475569;
+	.login-link {
 		text-align: center;
 	}
 
-	.signup-link a {
+	.login-link a {
 		color: #0f172a;
 		font-weight: 700;
 	}

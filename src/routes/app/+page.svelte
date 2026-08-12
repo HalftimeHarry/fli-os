@@ -10,8 +10,11 @@
 		pocketBaseUrl: env.PUBLIC_POCKETBASE_URL ?? 'http://127.0.0.1:8090'
 	} as AppConfig);
 
-	const currentUser = appContainer.authContext.currentUser;
-	const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'User';
+	let currentUser = $derived(appContainer.authContext.currentUser);
+	let userName = $derived(
+		currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'User'
+	);
+	let organizationId = $derived(appContainer.authContext.organizationId ?? 'No organization');
 
 	const navItems = [
 		{ label: 'Overview', href: '/app' as const, permission: Permission.VIEW_USERS },
@@ -38,7 +41,7 @@
 		<div class="brand">Fli OS</div>
 
 		<nav>
-			{#each navItems as item (item.href)}
+			{#each navItems as item (item.label)}
 				{#await canShow(item.permission)}
 					<span class="nav-item placeholder">{item.label}</span>
 				{:then allowed}
@@ -61,7 +64,7 @@
 
 		<section class="card">
 			<h2>Organization context</h2>
-			<p>{appContainer.authContext.organizationId ?? 'No organization'}</p>
+			<p>{organizationId}</p>
 		</section>
 	</main>
 </div>

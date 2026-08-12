@@ -32,6 +32,33 @@ export class UserService {
 		return this.users.create(user);
 	}
 
+	async createAccount(input: {
+		email: string;
+		password: string;
+		firstName?: string;
+		lastName?: string;
+	}): Promise<User> {
+		const email = input.email.trim();
+		const firstName = (input.firstName ?? '').trim();
+		const lastName = (input.lastName ?? '').trim();
+
+		if (!email || !email.includes('@')) {
+			throw new AppError('A valid email address is required.', 'USER_EMAIL_REQUIRED');
+		}
+
+		if (!input.password || input.password.length < 8) {
+			throw new AppError('Password must be at least 8 characters long.', 'USER_PASSWORD_TOO_SHORT');
+		}
+
+		if (!firstName || !lastName) {
+			throw new AppError('First and last name are required.', 'USER_NAME_REQUIRED');
+		}
+
+		const user = new User(crypto.randomUUID(), '', email, firstName, lastName, [], []);
+
+		return this.users.create(user, input.password);
+	}
+
 	async update(id: string, user: User): Promise<User> {
 		if (id !== user.id) {
 			throw new AppError('User ID does not match the requested update ID.', 'USER_ID_MISMATCH');

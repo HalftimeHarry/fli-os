@@ -17,10 +17,15 @@ export class PocketBaseUserRepository implements UserRepository {
 		return records.map((record) => UserFactory.fromPersistence(record));
 	}
 
-	async create(user: User): Promise<User> {
-		const record = await this.provider.client
-			.collection('users')
-			.create<UserRecord>(UserFactory.toPersistence(user));
+	async create(user: User, password?: string): Promise<User> {
+		const passwordValue = password ?? '';
+		const payload: Record<string, unknown> = {
+			...UserFactory.toPersistence(user),
+			password: passwordValue,
+			passwordConfirm: passwordValue
+		};
+
+		const record = await this.provider.client.collection('users').create<UserRecord>(payload);
 		return UserFactory.fromPersistence(record);
 	}
 

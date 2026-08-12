@@ -8,6 +8,7 @@ import type { OrganizationRepository } from '$lib/domains/organization/Organizat
 import { RoleService } from '$lib/domains/roles/RoleService';
 import type { RoleRepository } from '$lib/domains/roles/RoleRepository';
 import { UserService } from '$lib/domains/users/UserService';
+import { UserController } from '$lib/domains/users/UserController';
 import type { UserRepository } from '$lib/domains/users/UserRepository';
 import { ProjectController } from '$lib/domains/projects/ProjectController';
 import type { ProjectRepository } from '$lib/domains/projects/ProjectRepository';
@@ -41,6 +42,7 @@ export class AppContainer {
 
 	readonly organizationService: OrganizationService;
 	readonly userService: UserService;
+	readonly userController: UserController;
 	readonly roleService: RoleService;
 	readonly departmentService: DepartmentService;
 	readonly projectService: ProjectService;
@@ -69,6 +71,7 @@ export class AppContainer {
 			this.roles,
 			this.departments
 		);
+		this.userController = new UserController(this.userService);
 		this.projectService = new ProjectService(this.projects, this.organizations, this.departments);
 		this.projectTaskService = new ProjectTaskService(this.projectTasks, this.projects, this.users);
 		this.projectController = new ProjectController(this.projectService);

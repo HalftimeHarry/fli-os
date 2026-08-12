@@ -144,3 +144,9 @@ npm run build
 ## Project Notes
 
 This repository is intentionally structured around domain-first design and service validation before controller/UI expansion. The application is still in early product-building phases, but the foundational architecture is already established and is designed to support growth without coupling the UI directly to storage or authorization logic.
+
+> Every persisted Fli OS domain change must include a committed PocketBase migration.
+>
+> Phase 2 constraint-enforcement migrations are intentionally staged outside the active PocketBase migration directory until production data has been backed up, backfilled, and verified.
+>
+> Never move a staged constraint migration into the active PocketBase migration directory until the prerequisite data migration/backfill has been independently verified.
