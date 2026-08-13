@@ -1,21 +1,44 @@
 migrate((app) => {
+	const findCollectionByNameOrIdSafe = (...candidates) => {
+		for (const candidate of candidates) {
+			if (!candidate) continue;
+			try {
+				const collection = app.findCollectionByNameOrId(candidate);
+				if (collection) return collection;
+			} catch {
+				// PocketBase can throw "sql: no rows in result set" when a collection lookup misses,
+				// which is expected for a restored database that still uses the default auth collection ID.
+			}
+		}
+		return undefined;
+	};
+
+	const findUsersCollection = () =>
+		findCollectionByNameOrIdSafe('users', '_pb_users_auth_') ??
+		findCollectionByNameOrIdSafe('_pb_users_auth_', 'users');
+
 	const ensureCollection = (config) => {
-		const existing = app.findCollectionByNameOrId(config.name);
-		const next = existing
-			? new Collection({ ...existing, schema: [...(existing.schema || [])] })
-			: new Collection({
-					name: config.name,
-					type: config.type,
-					system: false,
-					listRule: null,
-					viewRule: null,
-					createRule: null,
-					updateRule: null,
-					deleteRule: null,
-					indexes: config.indexes ?? [],
-					schema: [],
-					options: config.options ?? {}
-				});
+		const existing = findCollectionByNameOrIdSafe(config.name);
+		const next =
+			existing ??
+			new Collection({
+				name: config.name,
+				type: config.type,
+				system: false,
+				listRule: null,
+				viewRule: null,
+				createRule: null,
+				updateRule: null,
+				deleteRule: null,
+				indexes: config.indexes ?? [],
+				schema: [],
+				options: config.options ?? {}
+			});
+
+		if (existing) {
+			next.schema = [...(existing.schema || [])];
+			next.indexes = [...(existing.indexes || [])];
+		}
 
 		const merged = new Map((next.schema || []).map((field) => [field.name, field]));
 
@@ -24,19 +47,29 @@ migrate((app) => {
 			merged.set(
 				field.name,
 				existingField
-					? new SchemaField({
+					? {
 							...existingField,
 							...field,
 							id: existingField.id || field.id
-						})
-					: new SchemaField(field)
+						}
+					: field
 			);
 		}
 
 		next.schema = Array.from(merged.values());
 		next.indexes = Array.from(new Set([...(next.indexes || []), ...(config.indexes ?? [])]));
 		next.options = config.options ?? next.options ?? {};
-
+		console.log(
+			'DEBUG_ENSURE_COLLECTION',
+			JSON.stringify({
+				configName: config.name,
+				nextId: next.id,
+				nextName: next.name,
+				nextType: next.type,
+				schemaCount: (next.schema || []).length,
+				indexesCount: (next.indexes || []).length
+			})
+		);
 		app.save(next);
 		return app.findCollectionByNameOrId(config.name);
 	};
@@ -44,13 +77,12 @@ migrate((app) => {
 	// Phase 1 intentionally keeps users.organization optional to preserve live auth records while the
 	// schema and data are being brought into alignment. Existing user records must be backfilled before
 	// tightening this relationship to required in a later Phase 2 migration.
-	const authUsers =
-		app.findCollectionByNameOrId('_pb_users_auth_') ?? app.findCollectionByNameOrId('users');
+	const authUsers = findUsersCollection();
 
 	const organizations = ensureCollection({
 		name: 'organizations',
 		type: 'base',
-		indexes: ['code'],
+		indexes: [],
 		options: {},
 		schema: [
 			{
@@ -77,7 +109,7 @@ migrate((app) => {
 	const roles = ensureCollection({
 		name: 'roles',
 		type: 'base',
-		indexes: ['organization'],
+		indexes: [],
 		options: {},
 		schema: [
 			{
@@ -119,7 +151,7 @@ migrate((app) => {
 	const departments = ensureCollection({
 		name: 'departments',
 		type: 'base',
-		indexes: ['organization', 'code'],
+		indexes: [],
 		options: {},
 		schema: [
 			{
@@ -183,11 +215,26 @@ migrate((app) => {
 			options: {}
 		});
 
-	const nextUserCollection = new Collection({
-		...userCollection,
-		schema: [...(userCollection.schema || [])],
-		indexes: [...(userCollection.indexes || [])]
-	});
+	const nextUserCollection =
+		userCollection ??
+		new Collection({
+			name: 'users',
+			type: 'auth',
+			system: false,
+			listRule: null,
+			viewRule: null,
+			createRule: null,
+			updateRule: null,
+			deleteRule: null,
+			schema: [],
+			indexes: [],
+			options: {}
+		});
+
+	if (userCollection) {
+		nextUserCollection.schema = [...(userCollection.schema || [])];
+		nextUserCollection.indexes = [...(userCollection.indexes || [])];
+	}
 
 	const userFields = [
 		{
@@ -262,19 +309,28 @@ migrate((app) => {
 		const existingField = mergedUsers.get(field.name);
 		mergedUsers.set(
 			field.name,
-			existingField
-				? new SchemaField({ ...existingField, ...field, id: existingField.id || field.id })
-				: new SchemaField(field)
+			existingField ? { ...existingField, ...field, id: existingField.id || field.id } : field
 		);
 	}
 
 	nextUserCollection.schema = Array.from(mergedUsers.values());
+	console.log(
+		'DEBUG_NEXT_USER_COLLECTION',
+		JSON.stringify({
+			id: nextUserCollection.id,
+			name: nextUserCollection.name,
+			type: nextUserCollection.type,
+			system: nextUserCollection.system,
+			schemaCount: (nextUserCollection.schema || []).length,
+			indexesCount: (nextUserCollection.indexes || []).length
+		})
+	);
 	app.save(nextUserCollection);
 
 	const projects = ensureCollection({
 		name: 'projects',
 		type: 'base',
-		indexes: ['organization', 'department', 'code'],
+		indexes: [],
 		options: {},
 		schema: [
 			{
@@ -379,7 +435,7 @@ migrate((app) => {
 	ensureCollection({
 		name: 'project_tasks',
 		type: 'base',
-		indexes: ['project', 'assignedUser'],
+		indexes: [],
 		options: {},
 		schema: [
 			{
@@ -480,8 +536,7 @@ migrate((app) => {
 	// Phase 2 should run only after all existing users have been backfilled and verified.
 	// This phase is intentionally left separate so live auth records are not forced into invalid states
 	// during the first schema pass.
-	const users =
-		app.findCollectionByNameOrId('_pb_users_auth_') ?? app.findCollectionByNameOrId('users');
+	const users = findUsersCollection();
 	if (!users) return;
 
 	const organizationField = users.schema.find((field) => field.name === 'organization');
