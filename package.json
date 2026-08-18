@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"dev:local": "PUBLIC_POCKETBASE_URL=http://127.0.0.1:8091 vite dev --host 0.0.0.0 --port 5173",
+		"dev:full": "bash ./scripts/dev-local.sh",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

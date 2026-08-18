@@ -17,60 +17,120 @@ migrate((app) => {
 		findCollectionByNameOrIdSafe('users', '_pb_users_auth_') ??
 		findCollectionByNameOrIdSafe('_pb_users_auth_', 'users');
 
-	const ensureCollection = (config) => {
-		const existing = findCollectionByNameOrIdSafe(config.name);
-		const next =
-			existing ??
-			new Collection({
-				name: config.name,
-				type: config.type,
-				system: false,
-				listRule: null,
-				viewRule: null,
-				createRule: null,
-				updateRule: null,
-				deleteRule: null,
-				indexes: config.indexes ?? [],
-				schema: [],
-				options: config.options ?? {}
-			});
+	const createCollection = (name, type = 'base') =>
+		new Collection({
+			name,
+			type,
+			system: false,
+			listRule: null,
+			viewRule: null,
+			createRule: null,
+			updateRule: null,
+			deleteRule: null,
+			indexes: [],
+			fields: [],
+			options: {}
+		});
 
+	const makeTypedField = (fieldConfig) => {
+		const baseConfig = {
+			name: fieldConfig.name,
+			required: fieldConfig.required ?? false,
+			presentable: fieldConfig.presentable ?? false,
+			unique: fieldConfig.unique ?? false,
+			options: fieldConfig.options ?? {}
+		};
+
+		switch (fieldConfig.type) {
+			case 'text':
+				return new TextField(baseConfig);
+			case 'relation':
+				return new RelationField({
+					...baseConfig,
+					collectionId: fieldConfig.options.collectionId,
+					cascadeDelete: fieldConfig.options.cascadeDelete ?? false,
+					minSelect: fieldConfig.options.minSelect ?? null,
+					maxSelect: fieldConfig.options.maxSelect ?? 1,
+					displayFields: fieldConfig.options.displayFields ?? []
+				});
+			case 'select':
+				return new SelectField({
+					...baseConfig,
+					maxSelect: fieldConfig.options.maxSelect ?? 1,
+					values: fieldConfig.options.values ?? []
+				});
+			case 'number':
+				return new NumberField({
+					...baseConfig,
+					min: fieldConfig.options.min ?? null,
+					max: fieldConfig.options.max ?? null,
+					noDecimal: fieldConfig.options.noDecimal ?? false
+				});
+			case 'date':
+				return new DateField({
+					...baseConfig,
+					min: fieldConfig.options.min ?? '',
+					max: fieldConfig.options.max ?? ''
+				});
+			case 'json':
+				return new JSONField(baseConfig);
+			default:
+				return new TextField(baseConfig);
+		}
+	};
+
+	const ensureField = (collection, fieldConfig) => {
+		const existing = collection.fields.getByName(fieldConfig.name);
 		if (existing) {
-			next.schema = [...(existing.schema || [])];
-			next.indexes = [...(existing.indexes || [])];
+			existing.required = fieldConfig.required ?? existing.required ?? false;
+			existing.presentable = fieldConfig.presentable ?? existing.presentable ?? false;
+			existing.unique = fieldConfig.unique ?? existing.unique ?? false;
+			if (fieldConfig.options) {
+				existing.options = fieldConfig.options;
+			}
+			if (fieldConfig.type === 'relation' && fieldConfig.options) {
+				existing.collectionId = fieldConfig.options.collectionId;
+				existing.cascadeDelete = fieldConfig.options.cascadeDelete ?? false;
+				existing.minSelect = fieldConfig.options.minSelect ?? null;
+				existing.maxSelect = fieldConfig.options.maxSelect ?? 1;
+				existing.displayFields = fieldConfig.options.displayFields ?? [];
+			}
+			return existing;
 		}
 
-		const merged = new Map((next.schema || []).map((field) => [field.name, field]));
+		const nextField = makeTypedField(fieldConfig);
+		collection.fields.add(nextField);
+		return nextField;
+	};
 
-		for (const field of config.schema) {
-			const existingField = merged.get(field.name);
-			merged.set(
-				field.name,
-				existingField
-					? {
-							...existingField,
-							...field,
-							id: existingField.id || field.id
-						}
-					: field
-			);
+	const ensureCollection = (config) => {
+		let collection = findCollectionByNameOrIdSafe(config.name);
+		if (!collection) {
+			collection = createCollection(config.name, config.type);
 		}
 
-		next.schema = Array.from(merged.values());
-		next.indexes = Array.from(new Set([...(next.indexes || []), ...(config.indexes ?? [])]));
-		next.options = config.options ?? next.options ?? {};
+		if (!collection.indexes) {
+			collection.indexes = [];
+		}
+		collection.indexes = Array.from(new Set([...(collection.indexes || []), ...(config.indexes ?? [])]));
+		collection.options = config.options ?? collection.options ?? {};
+
+		for (const fieldConfig of config.fields) {
+			ensureField(collection, fieldConfig);
+		}
+
 		console.log(
 			'DEBUG_ENSURE_COLLECTION',
 			JSON.stringify({
 				configName: config.name,
-				nextId: next.id,
-				nextName: next.name,
-				nextType: next.type,
-				schemaCount: (next.schema || []).length,
-				indexesCount: (next.indexes || []).length
+				nextId: collection.id,
+				nextName: collection.name,
+				nextType: collection.type,
+				fieldCount: collection.fields.length,
+				indexesCount: collection.indexes.length
 			})
 		);
-		app.save(next);
+		app.save(collection);
 		return app.findCollectionByNameOrId(config.name);
 	};
 
@@ -84,7 +144,7 @@ migrate((app) => {
 		type: 'base',
 		indexes: [],
 		options: {},
-		schema: [
+		fields: [
 			{
 				id: 'name',
 				name: 'name',
@@ -111,7 +171,7 @@ migrate((app) => {
 		type: 'base',
 		indexes: [],
 		options: {},
-		schema: [
+		fields: [
 			{
 				id: 'organization',
 				name: 'organization',
@@ -153,7 +213,7 @@ migrate((app) => {
 		type: 'base',
 		indexes: [],
 		options: {},
-		schema: [
+		fields: [
 			{
 				id: 'organization',
 				name: 'organization',
@@ -199,42 +259,34 @@ migrate((app) => {
 		]
 	});
 
-	const userCollection =
-		authUsers ??
-		new Collection({
-			name: 'users',
-			type: 'auth',
-			system: false,
-			listRule: null,
-			viewRule: null,
-			createRule: null,
-			updateRule: null,
-			deleteRule: null,
-			schema: [],
-			indexes: [],
-			options: {}
-		});
-
-	const nextUserCollection =
-		userCollection ??
-		new Collection({
-			name: 'users',
-			type: 'auth',
-			system: false,
-			listRule: null,
-			viewRule: null,
-			createRule: null,
-			updateRule: null,
-			deleteRule: null,
-			schema: [],
-			indexes: [],
-			options: {}
-		});
-
-	if (userCollection) {
-		nextUserCollection.schema = [...(userCollection.schema || [])];
-		nextUserCollection.indexes = [...(userCollection.indexes || [])];
+	let usersCollection = authUsers ?? createCollection('users', 'auth');
+	if (!usersCollection.indexes) {
+		usersCollection.indexes = [];
 	}
+
+	const ensureUserField = (fieldConfig) => {
+		const existing = usersCollection.fields.getByName(fieldConfig.name);
+		if (existing) {
+			existing.required = fieldConfig.required ?? existing.required ?? false;
+			existing.presentable = fieldConfig.presentable ?? existing.presentable ?? false;
+			existing.unique = fieldConfig.unique ?? existing.unique ?? false;
+			if (fieldConfig.options) {
+				existing.options = fieldConfig.options;
+			}
+			if (fieldConfig.type === 'relation' && fieldConfig.options) {
+				existing.collectionId = fieldConfig.options.collectionId;
+				existing.cascadeDelete = fieldConfig.options.cascadeDelete ?? false;
+				existing.minSelect = fieldConfig.options.minSelect ?? null;
+				existing.maxSelect = fieldConfig.options.maxSelect ?? 1;
+				existing.displayFields = fieldConfig.options.displayFields ?? [];
+			}
+			return existing;
+		}
+
+		const nextField = makeTypedField(fieldConfig);
+		usersCollection.fields.add(nextField);
+		return nextField;
+	};
 
 	const userFields = [
 		{
@@ -302,37 +354,29 @@ migrate((app) => {
 		}
 	];
 
-	const mergedUsers = new Map(
-		(nextUserCollection.schema || []).map((field) => [field.name, field])
-	);
 	for (const field of userFields) {
-		const existingField = mergedUsers.get(field.name);
-		mergedUsers.set(
-			field.name,
-			existingField ? { ...existingField, ...field, id: existingField.id || field.id } : field
-		);
+		ensureUserField(field);
 	}
 
-	nextUserCollection.schema = Array.from(mergedUsers.values());
 	console.log(
 		'DEBUG_NEXT_USER_COLLECTION',
 		JSON.stringify({
-			id: nextUserCollection.id,
-			name: nextUserCollection.name,
-			type: nextUserCollection.type,
-			system: nextUserCollection.system,
-			schemaCount: (nextUserCollection.schema || []).length,
-			indexesCount: (nextUserCollection.indexes || []).length
+			id: usersCollection.id,
+			name: usersCollection.name,
+			type: usersCollection.type,
+			system: usersCollection.system,
+			fieldCount: usersCollection.fields.length,
+			indexesCount: usersCollection.indexes.length
 		})
 	);
-	app.save(nextUserCollection);
+	app.save(usersCollection);
 
 	const projects = ensureCollection({
 		name: 'projects',
 		type: 'base',
 		indexes: [],
 		options: {},
-		schema: [
+		fields: [
 			{
 				id: 'organization',
 				name: 'organization',
@@ -437,7 +481,7 @@ migrate((app) => {
 		type: 'base',
 		indexes: [],
 		options: {},
-		schema: [
+		fields: [
 			{
 				id: 'project',
 				name: 'project',
@@ -491,7 +535,7 @@ migrate((app) => {
 				presentable: false,
 				unique: false,
 				options: {
-					collectionId: (authUsers ?? nextUserCollection).id,
+					collectionId: (authUsers ?? usersCollection).id,
 					cascadeDelete: false,
 					minSelect: null,
 					maxSelect: 1,
@@ -539,7 +583,7 @@ migrate((app) => {
 	const users = findUsersCollection();
 	if (!users) return;
 
-	const organizationField = users.schema.find((field) => field.name === 'organization');
+	const organizationField = users.fields.getByName('organization');
 	if (!organizationField) return;
 
 	organizationField.required = true;
